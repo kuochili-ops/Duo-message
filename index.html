@@ -158,7 +158,7 @@
       padding: 10px;
       box-shadow: 0 30px 60px rgba(0,0,0,0.35), inset 0 0 2px rgba(255,255,255,0.3);
       position: relative;
-      touch-action: none; /* 禁用網頁預設滑動滾動 */
+      touch-action: none;
       cursor: grab;
       transform: translateZ(0);
     }
@@ -189,7 +189,7 @@
 
     .duo-stage.dragging { transition: none !important; }
 
-    /* 右頁：圖片頁 */
+    /* 右頁：圖片頁 (背景設置為 Cover 保持不變形) */
     .page-right {
       position: absolute;
       top: 0;
@@ -198,6 +198,7 @@
       height: 100%;
       background-size: cover;
       background-position: center;
+      background-repeat: no-repeat;
       border-radius: 16px;
       box-shadow: 0 8px 25px rgba(0,0,0,0.5);
       overflow: hidden;
@@ -425,7 +426,6 @@
     </div>
   </div>
 
-  <!-- 錄影 Canvas 畫布 (600x800 解析度，精準 matches DOM 預覽) -->
   <canvas id="recordCanvas" width="600" height="800" style="display: none;"></canvas>
 
   <script>
@@ -468,7 +468,7 @@
 
     let animationTimer = null;
 
-    // 手指/滑鼠拖曳與節流變數
+    // 手指/滑鼠拖曳變數
     let isDragging = false;
     let startX = 0;
     let currentProgress = 0;
@@ -503,12 +503,11 @@
       pageLeft.style.color = textColor.value;
     }
 
-    /* 圖片降採樣與壓縮，防止高解析度圖片造成記憶體溢出 */
     function processAndOptimizeImage(imgSrc) {
       const tempImg = new Image();
       tempImg.crossOrigin = "anonymous";
       tempImg.onload = () => {
-        const maxDimension = 1000;
+        const maxDimension = 1200;
         let w = tempImg.width;
         let h = tempImg.height;
 
@@ -528,7 +527,7 @@
         const c2d = cvs.getContext('2d');
         c2d.drawImage(tempImg, 0, 0, w, h);
 
-        const optimizedUrl = cvs.toDataURL('image/jpeg', 0.88);
+        const optimizedUrl = cvs.toDataURL('image/jpeg', 0.90);
         currentImageUrl = optimizedUrl;
         pageRight.style.backgroundImage = `url('${currentImageUrl}')`;
         
@@ -561,7 +560,6 @@
       }
     });
 
-    /* 圓角矩形繪製函式 */
     function drawRoundedRect(ctx, x, y, width, height, radius) {
       if (width <= 0 || height <= 0) return;
       radius = Math.min(radius, width / 2, height / 2);
@@ -574,7 +572,33 @@
       ctx.closePath();
     }
 
-    /* 精確 Canvas 畫面渲染器 */
+    /* Canvas 繪製：改用 Aspect Fill (Cover) 自動居中裁切，保持原圖比例絕對不變形 */
+    function drawImageCover(ctx, img, x, y, w, h) {
+      const imgW = img.naturalWidth || img.width;
+      const imgH = img.naturalHeight || img.height;
+      
+      if (!imgW || !imgH) return;
+
+      const imgRatio = imgW / imgH;
+      const targetRatio = w / h;
+      
+      let sx, sy, sw, sh;
+      
+      if (imgRatio > targetRatio) {
+        sh = imgH;
+        sw = imgH * targetRatio;
+        sx = (imgW - sw) / 2;
+        sy = 0;
+      } else {
+        sw = imgW;
+        sh = imgW / targetRatio;
+        sx = 0;
+        sy = (imgH - sh) / 2;
+      }
+
+      ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+    }
+
     function drawCanvasFrame(progress) {
       const p = Math.max(0, Math.min(1, progress));
       const S = 2;
@@ -596,7 +620,7 @@
       ctx.clip();
 
       if (loadedImgObj && loadedImgObj.complete && loadedImgObj.naturalWidth > 0) {
-        ctx.drawImage(loadedImgObj, xHinge, topY, W, H);
+        drawImageCover(ctx, loadedImgObj, xHinge, topY, W, H);
       } else {
         ctx.fillStyle = "#333333";
         ctx.fillRect(xHinge, topY, W, H);
@@ -741,7 +765,7 @@
     function handlePointerMove(e) {
       if (!isDragging) return;
       if (e.cancelable && e.preventDefault) {
-        e.preventDefault(); // 禁止整個 App 網頁滾動
+        e.preventDefault();
       }
 
       const currentX = e.touches ? e.touches[0].clientX : e.clientX;
