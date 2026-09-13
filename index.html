@@ -2,9 +2,10 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>iPhone Duo 3D 翻頁訊息傳遞</title>
   
+  <!-- Google Fonts 中文字型 -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+TC:wght@400;700&family=Noto+Serif+TC:wght@400;700&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
@@ -14,6 +15,12 @@
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow-x: hidden;
     }
 
     body {
@@ -142,7 +149,7 @@
     .btn-purple { background-color: #af52de; }
     .btn-purple:hover { background-color: #9b42c8; }
 
-    /* iPhone Duo 機身外框 (內螢幕 300px * 400px) */
+    /* iPhone Duo 機身外框 */
     .phone-container {
       width: 320px;
       height: 420px;
@@ -151,7 +158,7 @@
       padding: 10px;
       box-shadow: 0 30px 60px rgba(0,0,0,0.35), inset 0 0 2px rgba(255,255,255,0.3);
       position: relative;
-      touch-action: none;
+      touch-action: none; /* 禁用網頁預設滑動滾動 */
       cursor: grab;
       transform: translateZ(0);
     }
@@ -335,6 +342,7 @@
 </head>
 <body>
 
+  <!-- 設定面板 -->
   <div class="control-panel" id="controlPanel">
     <h2>iPhone Duo 訊息傳遞控制</h2>
     
@@ -375,6 +383,7 @@
     <button class="btn" id="previewBtn">預覽動畫</button>
   </div>
 
+  <!-- 預覽模式操控面板 -->
   <div class="preview-container" id="previewContainer">
     <div class="speed-card">
       <div class="form-group" style="margin-bottom: 0;">
@@ -391,14 +400,17 @@
     </div>
   </div>
 
+  <!-- iPhone Duo 手機外框區塊 -->
   <div class="phone-container" id="phoneContainer">
     <div class="phone-screen">
       <div class="duo-stage" id="duoStage">
         
+        <!-- 右頁：底層圖片 -->
         <div class="page-right" id="pageRight">
           <div class="hinge-shadow-right" id="hingeRight"></div>
         </div>
 
+        <!-- 3D 翻轉扉頁 -->
         <div class="flip-card" id="flipCard">
           <div class="flip-front" id="flipFront">
             <div class="glass-reflection" id="glassReflect"></div>
@@ -413,6 +425,7 @@
     </div>
   </div>
 
+  <!-- 錄影 Canvas 畫布 (600x800 解析度，精準 matches DOM 預覽) -->
   <canvas id="recordCanvas" width="600" height="800" style="display: none;"></canvas>
 
   <script>
@@ -561,14 +574,12 @@
       ctx.closePath();
     }
 
-    /* 精確 Canvas 畫面渲染器（100% 匹配 3D 預覽畫面幾何） */
+    /* 精確 Canvas 畫面渲染器 */
     function drawCanvasFrame(progress) {
       const p = Math.max(0, Math.min(1, progress));
-      const S = 2; // Canvas Retina 2x 縮放比
+      const S = 2;
       
       ctx.clearRect(0, 0, recordCanvas.width, recordCanvas.height);
-      
-      // 手機螢幕背景
       ctx.fillStyle = "#121212";
       ctx.fillRect(0, 0, recordCanvas.width, recordCanvas.height);
 
@@ -579,7 +590,7 @@
       const topY = (200 * S) - (H / 2);
       const radius = 16 * scale * S;
 
-      // 1. 繪製右頁 (圖片頁)
+      // 1. 繪製右頁
       ctx.save();
       drawRoundedRect(ctx, xHinge, topY, W, H, radius);
       ctx.clip();
@@ -591,7 +602,6 @@
         ctx.fillRect(xHinge, topY, W, H);
       }
 
-      // 攤開時的右側中脊陰影
       if (p > 0) {
         const shadowGrad = ctx.createLinearGradient(xHinge, topY, xHinge + 35 * S, topY);
         shadowGrad.addColorStop(0, `rgba(0,0,0,${p * 0.6})`);
@@ -607,7 +617,6 @@
       const projWidth = W * Math.abs(cosVal);
 
       if (cosVal >= 0) {
-        // 扉頁正面：透明玻璃覆蓋層 (位於中脊右側)
         if (projWidth > 1) {
           ctx.save();
           drawRoundedRect(ctx, xHinge, topY, projWidth, H, radius);
@@ -620,7 +629,6 @@
           ctx.restore();
         }
       } else {
-        // 扉頁背面：暗色文字頁 (位於中脊左側)
         const leftX = xHinge - projWidth;
         if (projWidth > 1) {
           ctx.save();
@@ -630,14 +638,12 @@
           ctx.fillStyle = "rgba(22, 22, 24, 0.88)";
           ctx.fillRect(leftX, topY, projWidth, H);
 
-          // 左側中脊陰影
           const shadowGradLeft = ctx.createLinearGradient(xHinge, topY, xHinge - 35 * S, topY);
           shadowGradLeft.addColorStop(0, `rgba(0,0,0,${p * 0.6})`);
           shadowGradLeft.addColorStop(1, 'rgba(0,0,0,0)');
           ctx.fillStyle = shadowGradLeft;
           ctx.fillRect(xHinge - 35 * S, topY, 35 * S, H);
 
-          // 文字渲染
           ctx.globalAlpha = p;
           const curFontSize = parseFloat(fontSize.value) * scale * S * 0.9;
           ctx.font = `${curFontSize}px ${fontFamily.value}`;
@@ -734,6 +740,10 @@
 
     function handlePointerMove(e) {
       if (!isDragging) return;
+      if (e.cancelable && e.preventDefault) {
+        e.preventDefault(); // 禁止整個 App 網頁滾動
+      }
+
       const currentX = e.touches ? e.touches[0].clientX : e.clientX;
       const diffX = startX - currentX;
       
@@ -782,8 +792,8 @@
     window.addEventListener('mousemove', handlePointerMove);
     window.addEventListener('mouseup', handlePointerUp);
 
-    phoneContainer.addEventListener('touchstart', handlePointerDown, { passive: true });
-    window.addEventListener('touchmove', handlePointerMove, { passive: true });
+    phoneContainer.addEventListener('touchstart', handlePointerDown, { passive: false });
+    window.addEventListener('touchmove', handlePointerMove, { passive: false });
     window.addEventListener('touchend', handlePointerUp);
 
     function startManualRecording() {
