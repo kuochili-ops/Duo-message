@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>iPhone Duo 3D 翻頁訊息傳遞</title>
   
-  <!-- Google Fonts 中文字型 -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+TC:wght@400;700&family=Noto+Serif+TC:wght@400;700&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
@@ -143,7 +142,7 @@
     .btn-purple { background-color: #af52de; }
     .btn-purple:hover { background-color: #9b42c8; }
 
-    /* iPhone Duo 機身外框 */
+    /* iPhone Duo 機身外框 (內螢幕 300px * 400px) */
     .phone-container {
       width: 320px;
       height: 420px;
@@ -171,7 +170,7 @@
       perspective: 1400px;
     }
 
-    /* 單頁舞台尺寸：280px * 373px */
+    /* 單頁舞台尺寸：280px * 373px (標準 4:3 縱橫比) */
     .duo-stage {
       position: relative;
       width: 280px;
@@ -225,7 +224,7 @@
 
     .flip-card.dragging { transition: none !important; }
 
-    /* 扉頁正面（保留毛玻璃） */
+    /* 扉頁正面 */
     .flip-front {
       position: absolute;
       width: 100%;
@@ -260,7 +259,7 @@
       pointer-events: none;
     }
 
-    /* 扉頁背面（毛玻璃） */
+    /* 扉頁背面（文字頁） */
     .flip-back {
       position: absolute;
       width: 100%;
@@ -336,7 +335,6 @@
 </head>
 <body>
 
-  <!-- 設定面板 -->
   <div class="control-panel" id="controlPanel">
     <h2>iPhone Duo 訊息傳遞控制</h2>
     
@@ -377,7 +375,6 @@
     <button class="btn" id="previewBtn">預覽動畫</button>
   </div>
 
-  <!-- 預覽模式操控面板 -->
   <div class="preview-container" id="previewContainer">
     <div class="speed-card">
       <div class="form-group" style="margin-bottom: 0;">
@@ -394,17 +391,14 @@
     </div>
   </div>
 
-  <!-- iPhone Duo 手機外框區塊 -->
   <div class="phone-container" id="phoneContainer">
     <div class="phone-screen">
       <div class="duo-stage" id="duoStage">
         
-        <!-- 右頁：底層圖片 -->
         <div class="page-right" id="pageRight">
           <div class="hinge-shadow-right" id="hingeRight"></div>
         </div>
 
-        <!-- 3D 翻轉扉頁 -->
         <div class="flip-card" id="flipCard">
           <div class="flip-front" id="flipFront">
             <div class="glass-reflection" id="glassReflect"></div>
@@ -419,7 +413,7 @@
     </div>
   </div>
 
-  <canvas id="recordCanvas" width="420" height="600" style="display: none;"></canvas>
+  <canvas id="recordCanvas" width="600" height="800" style="display: none;"></canvas>
 
   <script>
     const controlPanel = document.getElementById('controlPanel');
@@ -496,7 +490,7 @@
       pageLeft.style.color = textColor.value;
     }
 
-    /* 自動降採樣（Compress & Downsample）大幅防止高畫質圖片佔用 GPU 記憶體導致 Koder 閃退 */
+    /* 圖片降採樣與壓縮，防止高解析度圖片造成記憶體溢出 */
     function processAndOptimizeImage(imgSrc) {
       const tempImg = new Image();
       tempImg.crossOrigin = "anonymous";
@@ -521,7 +515,7 @@
         const c2d = cvs.getContext('2d');
         c2d.drawImage(tempImg, 0, 0, w, h);
 
-        const optimizedUrl = cvs.toDataURL('image/jpeg', 0.85);
+        const optimizedUrl = cvs.toDataURL('image/jpeg', 0.88);
         currentImageUrl = optimizedUrl;
         pageRight.style.backgroundImage = `url('${currentImageUrl}')`;
         
@@ -553,6 +547,118 @@
         }
       }
     });
+
+    /* 圓角矩形繪製函式 */
+    function drawRoundedRect(ctx, x, y, width, height, radius) {
+      if (width <= 0 || height <= 0) return;
+      radius = Math.min(radius, width / 2, height / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + width, y, x + width, y + height, radius);
+      ctx.arcTo(x + width, y + height, x, y + height, radius);
+      ctx.arcTo(x, y + height, x, y, radius);
+      ctx.arcTo(x, y, x + width, y, radius);
+      ctx.closePath();
+    }
+
+    /* 精確 Canvas 畫面渲染器（100% 匹配 3D 預覽畫面幾何） */
+    function drawCanvasFrame(progress) {
+      const p = Math.max(0, Math.min(1, progress));
+      const S = 2; // Canvas Retina 2x 縮放比
+      
+      ctx.clearRect(0, 0, recordCanvas.width, recordCanvas.height);
+      
+      // 手機螢幕背景
+      ctx.fillStyle = "#121212";
+      ctx.fillRect(0, 0, recordCanvas.width, recordCanvas.height);
+
+      const scale = 1 - (p * 0.47);
+      const W = 280 * scale * S;
+      const H = 373 * scale * S;
+      const xHinge = (10 + p * 140) * S;
+      const topY = (200 * S) - (H / 2);
+      const radius = 16 * scale * S;
+
+      // 1. 繪製右頁 (圖片頁)
+      ctx.save();
+      drawRoundedRect(ctx, xHinge, topY, W, H, radius);
+      ctx.clip();
+
+      if (loadedImgObj && loadedImgObj.complete && loadedImgObj.naturalWidth > 0) {
+        ctx.drawImage(loadedImgObj, xHinge, topY, W, H);
+      } else {
+        ctx.fillStyle = "#333333";
+        ctx.fillRect(xHinge, topY, W, H);
+      }
+
+      // 攤開時的右側中脊陰影
+      if (p > 0) {
+        const shadowGrad = ctx.createLinearGradient(xHinge, topY, xHinge + 35 * S, topY);
+        shadowGrad.addColorStop(0, `rgba(0,0,0,${p * 0.6})`);
+        shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = shadowGrad;
+        ctx.fillRect(xHinge, topY, 35 * S, H);
+      }
+      ctx.restore();
+
+      // 2. 繪製 3D 扉頁
+      const angleRad = p * Math.PI;
+      const cosVal = Math.cos(angleRad);
+      const projWidth = W * Math.abs(cosVal);
+
+      if (cosVal >= 0) {
+        // 扉頁正面：透明玻璃覆蓋層 (位於中脊右側)
+        if (projWidth > 1) {
+          ctx.save();
+          drawRoundedRect(ctx, xHinge, topY, projWidth, H, radius);
+          ctx.clip();
+          ctx.fillStyle = `rgba(255, 255, 255, ${0.08 + p * 0.14})`;
+          ctx.fillRect(xHinge, topY, projWidth, H);
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+          ctx.lineWidth = 1.5 * S;
+          ctx.stroke();
+          ctx.restore();
+        }
+      } else {
+        // 扉頁背面：暗色文字頁 (位於中脊左側)
+        const leftX = xHinge - projWidth;
+        if (projWidth > 1) {
+          ctx.save();
+          drawRoundedRect(ctx, leftX, topY, projWidth, H, radius);
+          ctx.clip();
+          
+          ctx.fillStyle = "rgba(22, 22, 24, 0.88)";
+          ctx.fillRect(leftX, topY, projWidth, H);
+
+          // 左側中脊陰影
+          const shadowGradLeft = ctx.createLinearGradient(xHinge, topY, xHinge - 35 * S, topY);
+          shadowGradLeft.addColorStop(0, `rgba(0,0,0,${p * 0.6})`);
+          shadowGradLeft.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = shadowGradLeft;
+          ctx.fillRect(xHinge - 35 * S, topY, 35 * S, H);
+
+          // 文字渲染
+          ctx.globalAlpha = p;
+          const curFontSize = parseFloat(fontSize.value) * scale * S * 0.9;
+          ctx.font = `${curFontSize}px ${fontFamily.value}`;
+          ctx.fillStyle = textColor.value;
+          
+          const padding = 18 * scale * S;
+          const lines = (textInput.value || "").split('\n');
+          const lineHeight = curFontSize * 1.45;
+          
+          lines.forEach((line, idx) => {
+            const textY = topY + padding + curFontSize + (idx * lineHeight);
+            if (textY < topY + H - padding) {
+              ctx.fillText(line, leftX + padding, textY);
+            }
+          });
+
+          ctx.globalAlpha = 1.0;
+          ctx.restore();
+        }
+      }
+    }
 
     function toggleFlipState() {
       clearTimeout(animationTimer);
@@ -610,35 +716,7 @@
 
     function drawManualFrame() {
       if (!isManualRecording) return;
-      ctx.fillStyle = "#121212";
-      ctx.fillRect(0, 0, recordCanvas.width, recordCanvas.height);
-
-      const cardW = 280 * 1.1;
-      const cardH = 373 * 1.1;
-      const centerX = recordCanvas.width / 2;
-      const centerY = recordCanvas.height / 2;
-
-      ctx.save();
-      ctx.translate(centerX, centerY);
-
-      const rightX = (1 - currentProgress) * (-cardW / 2) + currentProgress * 0;
-      ctx.drawImage(loadedImgObj, rightX, -cardH / 2, cardW / 2, cardH);
-
-      if (currentProgress > 0) {
-        ctx.fillStyle = "rgba(22, 22, 24, 0.85)";
-        ctx.fillRect(-cardW / 2, -cardH / 2, cardW / 2, cardH);
-
-        ctx.globalAlpha = currentProgress;
-        ctx.font = `${fontSize.value}px ${fontFamily.value}`;
-        ctx.fillStyle = textColor.value;
-        const lines = (textInput.value || "").split('\n');
-        lines.forEach((line, idx) => {
-          ctx.fillText(line, -cardW / 2 + 15, -cardH / 2 + 30 + (idx * fontSize.value * 1.4));
-        });
-        ctx.globalAlpha = 1.0;
-      }
-
-      ctx.restore();
+      drawCanvasFrame(currentProgress);
       manualAnimFrameId = requestAnimationFrame(drawManualFrame);
     }
 
@@ -779,41 +857,12 @@
 
       function renderFrame(now) {
         const elapsed = now - startTime;
-        
-        ctx.fillStyle = "#121212";
-        ctx.fillRect(0, 0, recordCanvas.width, recordCanvas.height);
-
         let progress = 0;
         if (elapsed > 2000) {
           progress = Math.min(1, (elapsed - 2000) / flipDurationMs);
         }
 
-        const cardW = 280 * 1.1;
-        const cardH = 373 * 1.1;
-        const centerX = recordCanvas.width / 2;
-        const centerY = recordCanvas.height / 2;
-
-        ctx.save();
-        ctx.translate(centerX, centerY);
-
-        const rightX = (1 - progress) * (-cardW / 2) + progress * 0;
-        ctx.drawImage(loadedImgObj, rightX, -cardH / 2, cardW / 2, cardH);
-
-        if (progress > 0) {
-          ctx.fillStyle = "rgba(22, 22, 24, 0.85)";
-          ctx.fillRect(-cardW / 2, -cardH / 2, cardW / 2, cardH);
-
-          ctx.globalAlpha = progress;
-          ctx.font = `${fontSize.value}px ${fontFamily.value}`;
-          ctx.fillStyle = textColor.value;
-          const lines = (textInput.value || "").split('\n');
-          lines.forEach((line, idx) => {
-            ctx.fillText(line, -cardW / 2 + 15, -cardH / 2 + 30 + (idx * fontSize.value * 1.4));
-          });
-          ctx.globalAlpha = 1.0;
-        }
-
-        ctx.restore();
+        drawCanvasFrame(progress);
 
         if (elapsed < totalDurationMs) {
           requestAnimationFrame(renderFrame);
