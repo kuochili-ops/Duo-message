@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iPhone Duo 3D 翻頁訊息傳遞</title>
+  
+  <!-- Google Fonts 中文字型 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+TC:wght@400;700&family=Noto+Serif+TC:wght@400;700&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #f2f2f7;
+      color: #1c1c1e;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* 設定模式控制面板 */
+    .control-panel {
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+      width: 100%;
+      max-width: 440px;
+      margin-bottom: 16px;
+      transition: all 0.3s ease;
+    }
+
+    .control-panel.hidden { display: none; }
+
+    .control-panel h2 {
+      font-size: 1.25rem;
+      margin-bottom: 14px;
+      color: #1d1d1f;
+      border-bottom: 1.5px solid #f2f2f7;
+      padding-bottom: 8px;
+    }
+
+    .form-group { margin-bottom: 14px; }
+
+    .form-group label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.88rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #3a3a3c;
+    }
+
+    .form-group input[type="file"],
+    .form-group textarea,
+    .form-group select,
+    .form-group input[type="color"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d1d1d6;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      background-color: #fbfbfd;
+    }
+
+    .form-group input[type="range"] {
+      width: 100%;
+      height: 20px;
+      cursor: pointer;
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      height: 70px;
+    }
+
+    .row { display: flex; gap: 10px; }
+    .row .form-group { flex: 1; }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      background-color: #0071e3;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .btn:hover { background-color: #0077ed; }
+    .btn:active { transform: scale(0.98); }
+
+    /* 預覽模式操控區 */
+    .preview-container {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 340px;
+      margin-bottom: 14px;
+    }
+
+    .preview-container.active { display: flex; }
+
+    .speed-card {
+      background: #ffffff;
+      padding: 12px 16px;
+      border-radius: 14px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+      width: 100%;
+      margin-bottom: 10px;
+    }
+
+    .preview-actions { display: flex; gap: 6px; width: 100%; }
+
+    .preview-actions .btn {
+      padding: 10px 6px;
+      font-size: 0.82rem;
+      border-radius: 10px;
+    }
+
+    .btn-secondary { background-color: #6e6e73; }
+    .btn-secondary:hover { background-color: #555559; }
+    .btn-warning { background-color: #ff9500; }
+    .btn-warning:hover { background-color: #e08200; }
+    .btn-success { background-color: #34c759; }
+    .btn-success:hover { background-color: #2ea74e; }
+    .btn-purple { background-color: #af52de; }
+    .btn-purple:hover { background-color: #9b42c8; }
+
+    /* iPhone Duo 機身外框 */
+    .phone-container {
+      width: 320px;
+      height: 420px;
+      background-color: #1c1c1e;
+      border-radius: 36px;
+      padding: 10px;
+      box-shadow: 0 30px 60px rgba(0,0,0,0.35), inset 0 0 2px rgba(255,255,255,0.3);
+      position: relative;
+      touch-action: none;
+      cursor: grab;
+      transform: translateZ(0);
+    }
+
+    .phone-container:active { cursor: grabbing; }
+
+    .phone-screen {
+      width: 100%;
+      height: 100%;
+      background-color: #000000;
+      border-radius: 26px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      perspective: 1400px;
+    }
+
+    /* 單頁舞台尺寸：280px * 373px */
+    .duo-stage {
+      position: relative;
+      width: 280px;
+      height: 373px;
+      transform-style: preserve-3d;
+      will-change: transform;
+      transition: transform var(--flip-duration, 2s) cubic-bezier(0.175, 0.885, 0.32, 1.05);
+    }
+
+    .duo-stage.dragging { transition: none !important; }
+
+    /* 右頁：圖片頁 */
+    .page-right {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-size: cover;
+      background-position: center;
+      border-radius: 16px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+      overflow: hidden;
+    }
+
+    .hinge-shadow-right {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 35px;
+      height: 100%;
+      background: linear-gradient(to right, rgba(0,0,0,0.6), transparent);
+      opacity: 0;
+      transition: opacity var(--flip-duration, 2s) ease;
+      pointer-events: none;
+    }
+
+    /* 3D 扉頁 */
+    .flip-card {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transform-origin: left center;
+      transform-style: preserve-3d;
+      will-change: transform;
+      transition: transform var(--flip-duration, 2s) cubic-bezier(0.175, 0.885, 0.32, 1.05);
+      z-index: 5;
+    }
+
+    .flip-card.dragging { transition: none !important; }
+
+    /* 扉頁正面（保留毛玻璃） */
+    .flip-front {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(0px);
+      -webkit-backdrop-filter: blur(0px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+      overflow: hidden;
+      transition: backdrop-filter var(--flip-duration, 2s) ease, background var(--flip-duration, 2s) ease;
+    }
+
+    .flip-front.dragging { transition: none !important; }
+
+    .glass-reflection {
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: linear-gradient(
+        115deg, 
+        transparent 40%, 
+        rgba(255, 255, 255, 0.25) 50%, 
+        transparent 60%
+      );
+      transform: translateX(-100%);
+      transition: transform var(--flip-duration, 2s) ease-in-out;
+      pointer-events: none;
+    }
+
+    /* 扉頁背面（毛玻璃） */
+    .flip-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      transform: rotateY(180deg);
+      background: rgba(22, 22, 24, 0.82);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 16px;
+      padding: 20px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      box-shadow: -10px 10px 30px rgba(0,0,0,0.6);
+    }
+
+    .hinge-shadow-left {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 35px;
+      height: 100%;
+      background: linear-gradient(to left, rgba(0,0,0,0.5), transparent);
+      opacity: 0;
+      transition: opacity var(--flip-duration, 2s) ease;
+      pointer-events: none;
+    }
+
+    .text-content {
+      filter: blur(10px);
+      opacity: 0;
+      transform: translateY(6px);
+      transition: filter var(--flip-duration, 2s) ease,
+                  opacity var(--flip-duration, 2s) ease, 
+                  transform var(--flip-duration, 2s) ease;
+    }
+
+    .text-content.dragging { transition: none !important; }
+
+    /* Duo 展開狀態 */
+    .duo-stage.open {
+      transform: scale(0.53) translateX(140px);
+    }
+
+    .duo-stage.open .flip-card {
+      transform: rotateY(-180deg);
+    }
+
+    .duo-stage.open .flip-front {
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .duo-stage.open .glass-reflection {
+      transform: translateX(100%);
+    }
+
+    .duo-stage.open .hinge-shadow-right,
+    .duo-stage.open .hinge-shadow-left {
+      opacity: 0.7;
+    }
+
+    .duo-stage.open .text-content {
+      filter: blur(0px);
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 設定面板 -->
+  <div class="control-panel" id="controlPanel">
+    <h2>iPhone Duo 訊息傳遞控制</h2>
+    
+    <div class="form-group">
+      <label>圖片 (檔案 / 相簿 / Ctrl+V 貼上)</label>
+      <input type="file" id="imageInput" accept="image/*">
+    </div>
+
+    <div class="form-group">
+      <label>訊息內容（支援分行）</label>
+      <textarea id="textInput" placeholder="請輸入訊息內容...">親愛的：
+祝你今天有個美好的一天！
+這是來自 iPhone Duo 的動態訊息折頁。</textarea>
+    </div>
+
+    <div class="row">
+      <div class="form-group">
+        <label>Google 中文字型</label>
+        <select id="fontFamily">
+          <option value="'Noto Sans TC', sans-serif">思源黑體 (Noto Sans)</option>
+          <option value="'Noto Serif TC', serif">思源宋體 (Noto Serif)</option>
+          <option value="'Ma Shan Zheng', cursive">馬善政毛筆楷體</option>
+          <option value="'ZCOOL KuaiLe', cursive">酷樂圓體 (ZCOOL)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>顏色</label>
+        <input type="color" id="textColor" value="#ffffff">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>文字尺寸 <span id="fontSizeVal">16px</span></label>
+      <input type="range" id="fontSize" min="12" max="32" value="16">
+    </div>
+
+    <button class="btn" id="previewBtn">預覽動畫</button>
+  </div>
+
+  <!-- 預覽模式操控面板 -->
+  <div class="preview-container" id="previewContainer">
+    <div class="speed-card">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label>翻頁速度 <span id="speedVal">2.0 秒</span></label>
+        <input type="range" id="speedInput" min="0.5" max="6.0" step="0.1" value="2.0">
+      </div>
+    </div>
+
+    <div class="preview-actions">
+      <button class="btn btn-secondary" id="backBtn">返回修改</button>
+      <button class="btn btn-warning" id="toggleFlipBtn">開 / 闔切換</button>
+      <button class="btn btn-purple" id="manualRecordBtn">手動觸控錄影</button>
+      <button class="btn btn-success" id="recordBtn">自動錄影</button>
+    </div>
+  </div>
+
+  <!-- iPhone Duo 手機外框區塊 -->
+  <div class="phone-container" id="phoneContainer">
+    <div class="phone-screen">
+      <div class="duo-stage" id="duoStage">
+        
+        <!-- 右頁：底層圖片 -->
+        <div class="page-right" id="pageRight">
+          <div class="hinge-shadow-right" id="hingeRight"></div>
+        </div>
+
+        <!-- 3D 翻轉扉頁 -->
+        <div class="flip-card" id="flipCard">
+          <div class="flip-front" id="flipFront">
+            <div class="glass-reflection" id="glassReflect"></div>
+          </div>
+          <div class="flip-back">
+            <div class="hinge-shadow-left" id="hingeLeft"></div>
+            <div class="text-content" id="pageLeft"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <canvas id="recordCanvas" width="420" height="600" style="display: none;"></canvas>
+
+  <script>
+    const controlPanel = document.getElementById('controlPanel');
+    const previewContainer = document.getElementById('previewContainer');
+    
+    const imageInput = document.getElementById('imageInput');
+    const textInput = document.getElementById('textInput');
+    const fontFamily = document.getElementById('fontFamily');
+    const fontSize = document.getElementById('fontSize');
+    const fontSizeVal = document.getElementById('fontSizeVal');
+    const textColor = document.getElementById('textColor');
+    
+    const speedInput = document.getElementById('speedInput');
+    const speedVal = document.getElementById('speedVal');
+
+    const previewBtn = document.getElementById('previewBtn');
+    const backBtn = document.getElementById('backBtn');
+    const toggleFlipBtn = document.getElementById('toggleFlipBtn');
+    const manualRecordBtn = document.getElementById('manualRecordBtn');
+    const recordBtn = document.getElementById('recordBtn');
+
+    const phoneContainer = document.getElementById('phoneContainer');
+    const duoStage = document.getElementById('duoStage');
+    const flipCard = document.getElementById('flipCard');
+    const flipFront = document.getElementById('flipFront');
+    const glassReflect = document.getElementById('glassReflect');
+    const pageRight = document.getElementById('pageRight');
+    const pageLeft = document.getElementById('pageLeft');
+    const hingeRight = document.getElementById('hingeRight');
+    const hingeLeft = document.getElementById('hingeLeft');
+
+    const recordCanvas = document.getElementById('recordCanvas');
+    const ctx = recordCanvas.getContext('2d', { willReadFrequently: false });
+
+    let currentImageUrl = 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&q=80';
+    let loadedImgObj = new Image();
+    loadedImgObj.crossOrigin = "anonymous";
+    loadedImgObj.src = currentImageUrl;
+
+    let animationTimer = null;
+
+    // 手指/滑鼠拖曳與節流變數
+    let isDragging = false;
+    let startX = 0;
+    let currentProgress = 0;
+    let rafScheduled = false;
+
+    // 手動錄影變數
+    let isManualRecording = false;
+    let manualMediaRecorder = null;
+    let manualChunks = [];
+    let manualAnimFrameId = null;
+
+    pageRight.style.backgroundImage = `url('${currentImageUrl}')`;
+    updateTextStyles();
+
+    fontFamily.addEventListener('change', updateTextStyles);
+
+    fontSize.addEventListener('input', () => {
+      fontSizeVal.textContent = fontSize.value + 'px';
+      updateTextStyles();
+    });
+
+    speedInput.addEventListener('input', () => {
+      const speed = speedInput.value;
+      speedVal.textContent = parseFloat(speed).toFixed(1) + ' 秒';
+      document.documentElement.style.setProperty('--flip-duration', speed + 's');
+    });
+
+    function updateTextStyles() {
+      pageLeft.textContent = textInput.value || "（請輸入訊息）";
+      pageLeft.style.fontFamily = fontFamily.value;
+      pageLeft.style.fontSize = fontSize.value + 'px';
+      pageLeft.style.color = textColor.value;
+    }
+
+    /* 自動降採樣（Compress & Downsample）大幅防止高畫質圖片佔用 GPU 記憶體導致 Koder 閃退 */
+    function processAndOptimizeImage(imgSrc) {
+      const tempImg = new Image();
+      tempImg.crossOrigin = "anonymous";
+      tempImg.onload = () => {
+        const maxDimension = 1000;
+        let w = tempImg.width;
+        let h = tempImg.height;
+
+        if (w > maxDimension || h > maxDimension) {
+          if (w > h) {
+            h = Math.round((h * maxDimension) / w);
+            w = maxDimension;
+          } else {
+            w = Math.round((w * maxDimension) / h);
+            h = maxDimension;
+          }
+        }
+
+        const cvs = document.createElement('canvas');
+        cvs.width = w;
+        cvs.height = h;
+        const c2d = cvs.getContext('2d');
+        c2d.drawImage(tempImg, 0, 0, w, h);
+
+        const optimizedUrl = cvs.toDataURL('image/jpeg', 0.85);
+        currentImageUrl = optimizedUrl;
+        pageRight.style.backgroundImage = `url('${currentImageUrl}')`;
+        
+        loadedImgObj = new Image();
+        loadedImgObj.src = currentImageUrl;
+      };
+      tempImg.src = imgSrc;
+    }
+
+    function loadImage(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        processAndOptimizeImage(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    imageInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) loadImage(e.target.files[0]);
+    });
+
+    window.addEventListener('paste', (e) => {
+      const items = e.clipboardData.items;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          loadImage(items[i].getAsFile());
+          break;
+        }
+      }
+    });
+
+    function toggleFlipState() {
+      clearTimeout(animationTimer);
+      setDraggingClass(false);
+      duoStage.style.transform = '';
+      flipCard.style.transform = '';
+
+      if (duoStage.classList.contains('open')) {
+        duoStage.classList.remove('open');
+      } else {
+        duoStage.classList.add('open');
+      }
+    }
+
+    function applyDragProgress(p) {
+      currentProgress = Math.max(0, Math.min(1, p));
+      
+      const scale = 1 - (currentProgress * 0.47);
+      const translateX = currentProgress * 140;
+      duoStage.style.transform = `scale(${scale}) translateX(${translateX}px)`;
+
+      const rotateY = -currentProgress * 180;
+      flipCard.style.transform = `rotateY(${rotateY}deg)`;
+
+      const blurVal = currentProgress * 16;
+      flipFront.style.backdropFilter = `blur(${blurVal}px)`;
+      flipFront.style.webkitBackdropFilter = `blur(${blurVal}px)`;
+      flipFront.style.background = `rgba(255, 255, 255, ${0.08 + currentProgress * 0.14})`;
+
+      const reflectX = (currentProgress * 200) - 100;
+      glassReflect.style.transform = `translateX(${reflectX}%)`;
+
+      hingeRight.style.opacity = currentProgress * 0.7;
+      hingeLeft.style.opacity = currentProgress * 0.7;
+
+      const textBlur = (1 - currentProgress) * 10;
+      pageLeft.style.filter = `blur(${textBlur}px)`;
+      pageLeft.style.opacity = currentProgress;
+      pageLeft.style.transform = `translateY(${(1 - currentProgress) * 6}px)`;
+    }
+
+    function setDraggingClass(enabled) {
+      if (enabled) {
+        duoStage.classList.add('dragging');
+        flipCard.classList.add('dragging');
+        flipFront.classList.add('dragging');
+        pageLeft.classList.add('dragging');
+      } else {
+        duoStage.classList.remove('dragging');
+        flipCard.classList.remove('dragging');
+        flipFront.classList.remove('dragging');
+        pageLeft.classList.remove('dragging');
+      }
+    }
+
+    function drawManualFrame() {
+      if (!isManualRecording) return;
+      ctx.fillStyle = "#121212";
+      ctx.fillRect(0, 0, recordCanvas.width, recordCanvas.height);
+
+      const cardW = 280 * 1.1;
+      const cardH = 373 * 1.1;
+      const centerX = recordCanvas.width / 2;
+      const centerY = recordCanvas.height / 2;
+
+      ctx.save();
+      ctx.translate(centerX, centerY);
+
+      const rightX = (1 - currentProgress) * (-cardW / 2) + currentProgress * 0;
+      ctx.drawImage(loadedImgObj, rightX, -cardH / 2, cardW / 2, cardH);
+
+      if (currentProgress > 0) {
+        ctx.fillStyle = "rgba(22, 22, 24, 0.85)";
+        ctx.fillRect(-cardW / 2, -cardH / 2, cardW / 2, cardH);
+
+        ctx.globalAlpha = currentProgress;
+        ctx.font = `${fontSize.value}px ${fontFamily.value}`;
+        ctx.fillStyle = textColor.value;
+        const lines = (textInput.value || "").split('\n');
+        lines.forEach((line, idx) => {
+          ctx.fillText(line, -cardW / 2 + 15, -cardH / 2 + 30 + (idx * fontSize.value * 1.4));
+        });
+        ctx.globalAlpha = 1.0;
+      }
+
+      ctx.restore();
+      manualAnimFrameId = requestAnimationFrame(drawManualFrame);
+    }
+
+    function handlePointerDown(e) {
+      clearTimeout(animationTimer);
+      isDragging = true;
+      startX = e.touches ? e.touches[0].clientX : e.clientX;
+      setDraggingClass(true);
+      duoStage.classList.remove('open');
+
+      if (isManualRecording) {
+        drawManualFrame();
+      }
+    }
+
+    function handlePointerMove(e) {
+      if (!isDragging) return;
+      const currentX = e.touches ? e.touches[0].clientX : e.clientX;
+      const diffX = startX - currentX;
+      
+      if (!rafScheduled) {
+        rafScheduled = true;
+        requestAnimationFrame(() => {
+          const deltaProgress = diffX / 180;
+          const baseProgress = duoStage.classList.contains('open') ? 1 : 0;
+          applyDragProgress(baseProgress + deltaProgress);
+          rafScheduled = false;
+        });
+      }
+    }
+
+    function handlePointerUp() {
+      if (!isDragging) return;
+      isDragging = false;
+      setDraggingClass(false);
+
+      if (currentProgress > 0.4) {
+        duoStage.classList.add('open');
+      } else {
+        duoStage.classList.remove('open');
+      }
+
+      duoStage.style.transform = '';
+      flipCard.style.transform = '';
+      flipFront.style.backdropFilter = '';
+      flipFront.style.webkitBackdropFilter = '';
+      flipFront.style.background = '';
+      glassReflect.style.transform = '';
+      pageLeft.style.filter = '';
+      pageLeft.style.opacity = '';
+      pageLeft.style.transform = '';
+
+      if (isManualRecording) {
+        isManualRecording = false;
+        cancelAnimationFrame(manualAnimFrameId);
+        if (manualMediaRecorder && manualMediaRecorder.state === "recording") {
+          manualMediaRecorder.stop();
+        }
+      }
+    }
+
+    phoneContainer.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
+
+    phoneContainer.addEventListener('touchstart', handlePointerDown, { passive: true });
+    window.addEventListener('touchmove', handlePointerMove, { passive: true });
+    window.addEventListener('touchend', handlePointerUp);
+
+    function startManualRecording() {
+      alert("【手動錄影模式已啟動】\n請直接在手機螢幕上滑動翻頁，手指離開螢幕後將自動下載影片檔。");
+      
+      const canvasStream = recordCanvas.captureStream(30);
+      manualMediaRecorder = new MediaRecorder(canvasStream, { mimeType: 'video/webm' });
+      manualChunks = [];
+
+      manualMediaRecorder.ondataavailable = e => manualChunks.push(e.data);
+      manualMediaRecorder.onstop = () => {
+        const blob = new Blob(manualChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'iPhone_Duo_Manual_Flip.webm';
+        a.click();
+      };
+
+      manualMediaRecorder.start();
+      isManualRecording = true;
+    }
+
+    function playAnimationSequence() {
+      clearTimeout(animationTimer);
+      setDraggingClass(false);
+      duoStage.style.transform = '';
+      flipCard.style.transform = '';
+      duoStage.classList.remove('open');
+
+      animationTimer = setTimeout(() => {
+        duoStage.classList.add('open');
+      }, 2000);
+    }
+
+    function startPreview() {
+      updateTextStyles();
+      controlPanel.classList.add('hidden');
+      previewContainer.classList.add('active');
+      playAnimationSequence();
+    }
+
+    function backToEdit() {
+      clearTimeout(animationTimer);
+      controlPanel.classList.remove('hidden');
+      previewContainer.classList.remove('active');
+      duoStage.classList.remove('open');
+    }
+
+    function recordCanvasDirectly() {
+      const canvasStream = recordCanvas.captureStream(30);
+      const mediaRecorder = new MediaRecorder(canvasStream, { mimeType: 'video/webm' });
+      const chunks = [];
+
+      mediaRecorder.ondataavailable = e => chunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'iPhone_Duo_Message.webm';
+        a.click();
+      };
+
+      playAnimationSequence();
+      mediaRecorder.start();
+
+      const startTime = performance.now();
+      const flipDurationMs = parseFloat(speedInput.value) * 1000;
+      const totalDurationMs = 2000 + flipDurationMs + 1500;
+
+      function renderFrame(now) {
+        const elapsed = now - startTime;
+        
+        ctx.fillStyle = "#121212";
+        ctx.fillRect(0, 0, recordCanvas.width, recordCanvas.height);
+
+        let progress = 0;
+        if (elapsed > 2000) {
+          progress = Math.min(1, (elapsed - 2000) / flipDurationMs);
+        }
+
+        const cardW = 280 * 1.1;
+        const cardH = 373 * 1.1;
+        const centerX = recordCanvas.width / 2;
+        const centerY = recordCanvas.height / 2;
+
+        ctx.save();
+        ctx.translate(centerX, centerY);
+
+        const rightX = (1 - progress) * (-cardW / 2) + progress * 0;
+        ctx.drawImage(loadedImgObj, rightX, -cardH / 2, cardW / 2, cardH);
+
+        if (progress > 0) {
+          ctx.fillStyle = "rgba(22, 22, 24, 0.85)";
+          ctx.fillRect(-cardW / 2, -cardH / 2, cardW / 2, cardH);
+
+          ctx.globalAlpha = progress;
+          ctx.font = `${fontSize.value}px ${fontFamily.value}`;
+          ctx.fillStyle = textColor.value;
+          const lines = (textInput.value || "").split('\n');
+          lines.forEach((line, idx) => {
+            ctx.fillText(line, -cardW / 2 + 15, -cardH / 2 + 30 + (idx * fontSize.value * 1.4));
+          });
+          ctx.globalAlpha = 1.0;
+        }
+
+        ctx.restore();
+
+        if (elapsed < totalDurationMs) {
+          requestAnimationFrame(renderFrame);
+        } else {
+          mediaRecorder.stop();
+        }
+      }
+
+      requestAnimationFrame(renderFrame);
+    }
+
+    previewBtn.addEventListener('click', startPreview);
+    backBtn.addEventListener('click', backToEdit);
+    toggleFlipBtn.addEventListener('click', toggleFlipState);
+    manualRecordBtn.addEventListener('click', startManualRecording);
+    recordBtn.addEventListener('click', recordCanvasDirectly);
+  </script>
+</body>
+</html>
