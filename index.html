@@ -177,7 +177,7 @@
       perspective: 1400px;
     }
 
-    /* 單頁舞台尺寸：280px * 373px (標準 4:3 縱橫比) */
+    /* 單頁舞台尺寸：280px * 373px */
     .duo-stage {
       position: relative;
       width: 280px;
@@ -189,7 +189,7 @@
 
     .duo-stage.dragging { transition: none !important; }
 
-    /* 右頁：圖片頁 (背景設置為 Cover 保持不變形) */
+    /* 右頁：圖片頁 */
     .page-right {
       position: absolute;
       top: 0;
@@ -232,7 +232,7 @@
 
     .flip-card.dragging { transition: none !important; }
 
-    /* 扉頁正面 */
+    /* 扉頁正面（毛玻璃） */
     .flip-front {
       position: absolute;
       width: 100%;
@@ -267,7 +267,7 @@
       pointer-events: none;
     }
 
-    /* 扉頁背面（文字頁） */
+    /* 扉頁背面（文字頁毛玻璃） */
     .flip-back {
       position: absolute;
       width: 100%;
@@ -384,7 +384,7 @@
     <button class="btn" id="previewBtn">預覽動畫</button>
   </div>
 
-  <!-- 預覽模式操控面板 -->
+  <!-- 預覽模式操控區 -->
   <div class="preview-container" id="previewContainer">
     <div class="speed-card">
       <div class="form-group" style="margin-bottom: 0;">
@@ -572,16 +572,13 @@
       ctx.closePath();
     }
 
-    /* Canvas 繪製：改用 Aspect Fill (Cover) 自動居中裁切，保持原圖比例絕對不變形 */
     function drawImageCover(ctx, img, x, y, w, h) {
       const imgW = img.naturalWidth || img.width;
       const imgH = img.naturalHeight || img.height;
-      
       if (!imgW || !imgH) return;
 
       const imgRatio = imgW / imgH;
       const targetRatio = w / h;
-      
       let sx, sy, sw, sh;
       
       if (imgRatio > targetRatio) {
@@ -599,6 +596,7 @@
       ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
     }
 
+    /* Canvas 擬真毛玻璃與動態錄影渲染器 */
     function drawCanvasFrame(progress) {
       const p = Math.max(0, Math.min(1, progress));
       const S = 2;
@@ -614,7 +612,7 @@
       const topY = (200 * S) - (H / 2);
       const radius = 16 * scale * S;
 
-      // 1. 繪製右頁
+      // 1. 繪製右頁 (底圖頁)
       ctx.save();
       drawRoundedRect(ctx, xHinge, topY, W, H, radius);
       ctx.clip();
@@ -641,10 +639,21 @@
       const projWidth = W * Math.abs(cosVal);
 
       if (cosVal >= 0) {
+        // 扉頁正面：正面透明玻璃
         if (projWidth > 1) {
           ctx.save();
           drawRoundedRect(ctx, xHinge, topY, projWidth, H, radius);
           ctx.clip();
+          
+          const blurVal = p * 12 * S;
+          if (blurVal > 0.5) {
+            ctx.filter = `blur(${blurVal}px)`;
+            if (loadedImgObj && loadedImgObj.complete && loadedImgObj.naturalWidth > 0) {
+              drawImageCover(ctx, loadedImgObj, xHinge, topY, W, H);
+            }
+            ctx.filter = 'none';
+          }
+          
           ctx.fillStyle = `rgba(255, 255, 255, ${0.08 + p * 0.14})`;
           ctx.fillRect(xHinge, topY, projWidth, H);
           ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
@@ -653,22 +662,41 @@
           ctx.restore();
         }
       } else {
+        // 扉頁背面：暗色毛玻璃 + 文字
         const leftX = xHinge - projWidth;
         if (projWidth > 1) {
           ctx.save();
           drawRoundedRect(ctx, leftX, topY, projWidth, H, radius);
           ctx.clip();
-          
-          ctx.fillStyle = "rgba(22, 22, 24, 0.88)";
+
+          // 毛玻璃底層（高斯模糊底圖 + 暗色遮罩）
+          ctx.filter = `blur(${14 * S}px)`;
+          if (loadedImgObj && loadedImgObj.complete && loadedImgObj.naturalWidth > 0) {
+            drawImageCover(ctx, leftX, topY, projWidth, H);
+          }
+          ctx.filter = 'none';
+
+          ctx.fillStyle = "rgba(22, 22, 24, 0.82)";
           ctx.fillRect(leftX, topY, projWidth, H);
 
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+          ctx.lineWidth = 1.5 * S;
+          ctx.stroke();
+
+          // 左側中脊陰影
           const shadowGradLeft = ctx.createLinearGradient(xHinge, topY, xHinge - 35 * S, topY);
           shadowGradLeft.addColorStop(0, `rgba(0,0,0,${p * 0.6})`);
           shadowGradLeft.addColorStop(1, 'rgba(0,0,0,0)');
           ctx.fillStyle = shadowGradLeft;
           ctx.fillRect(xHinge - 35 * S, topY, 35 * S, H);
 
+          // 動態模糊透出文字
           ctx.globalAlpha = p;
+          const textBlur = (1 - p) * 10 * S;
+          if (textBlur > 0.5) {
+            ctx.filter = `blur(${textBlur}px)`;
+          }
+
           const curFontSize = parseFloat(fontSize.value) * scale * S * 0.9;
           ctx.font = `${curFontSize}px ${fontFamily.value}`;
           ctx.fillStyle = textColor.value;
@@ -684,6 +712,7 @@
             }
           });
 
+          ctx.filter = 'none';
           ctx.globalAlpha = 1.0;
           ctx.restore();
         }
