@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>iPhone Duo 3D 翻頁訊息傳遞</title>
+  <title>𓃥 白六 Duo 訊息編輯</title>
   
   <!-- Google Fonts 中文字型 -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -110,6 +110,14 @@
 
     .btn:hover { background-color: #0077ed; }
     .btn:active { transform: scale(0.98); }
+
+    .btn-clipboard {
+      background-color: #34c759;
+      margin-top: 6px;
+      padding: 10px;
+      font-size: 0.9rem;
+    }
+    .btn-clipboard:hover { background-color: #2ea74e; }
 
     /* 預覽模式操控區 */
     .preview-container {
@@ -345,11 +353,12 @@
 
   <!-- 設定面板 -->
   <div class="control-panel" id="controlPanel">
-    <h2>iPhone Duo 訊息傳遞控制</h2>
+    <h2>𓃥 白六 Duo 訊息編輯</h2>
     
     <div class="form-group">
-      <label>圖片 (檔案 / 相簿 / Ctrl+V 貼上)</label>
+      <label>圖片來源 (檔案 / 相簿 / 貼上)</label>
       <input type="file" id="imageInput" accept="image/*">
+      <button class="btn btn-clipboard" id="pasteBtn">📋 讀取剪貼簿圖片</button>
     </div>
 
     <div class="form-group">
@@ -433,6 +442,7 @@
     const previewContainer = document.getElementById('previewContainer');
     
     const imageInput = document.getElementById('imageInput');
+    const pasteBtn = document.getElementById('pasteBtn');
     const textInput = document.getElementById('textInput');
     const fontFamily = document.getElementById('fontFamily');
     const fontSize = document.getElementById('fontSize');
@@ -465,7 +475,6 @@
     let loadedImgObj = new Image();
     loadedImgObj.crossOrigin = "anonymous";
     
-    // 預先模糊好的 Canvas/Image，專為錄影毛玻璃設計
     let blurredImgCanvas = document.createElement('canvas');
 
     let animationTimer = null;
@@ -512,7 +521,6 @@
       blurredImgCanvas.height = h;
       const bCtx = blurredImgCanvas.getContext('2d');
 
-      // 使用 2 階採樣多重模糊演算法，極速、完美且百分之百相容所有手機
       bCtx.drawImage(img, 0, 0, w / 4, h / 4);
       bCtx.drawImage(blurredImgCanvas, 0, 0, w / 4, h / 4, 0, 0, w, h);
       bCtx.drawImage(blurredImgCanvas, 0, 0, w, h);
@@ -576,6 +584,28 @@
       if (e.target.files.length > 0) loadImage(e.target.files[0]);
     });
 
+    // 讀取剪貼簿圖片按鈕
+    pasteBtn.addEventListener('click', async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.read) {
+          const clipboardItems = await navigator.clipboard.read();
+          for (const item of clipboardItems) {
+            const imageType = item.types.find(type => type.startsWith('image/'));
+            if (imageType) {
+              const blob = await item.getType(imageType);
+              loadImage(blob);
+              return;
+            }
+          }
+          alert("剪貼簿中未找到圖片檔。");
+        } else {
+          alert("請直接使用 Ctrl+V 貼上圖片。");
+        }
+      } catch (err) {
+        alert("無法讀取剪貼簿圖片，請確保已授權瀏覽器讀取權限，或直接使用通用貼上方式。");
+      }
+    });
+
     window.addEventListener('paste', (e) => {
       const items = e.clipboardData.items;
       for (let i = 0; i < items.length; i++) {
@@ -622,7 +652,6 @@
       ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
     }
 
-    /* 錄影渲染器：使用預模糊圖繪製，100% 還原毛玻璃且保證順暢不閃退 */
     function drawCanvasFrame(progress) {
       const p = Math.max(0, Math.min(1, progress));
       const S = 2;
@@ -665,7 +694,6 @@
       const projWidth = W * Math.abs(cosVal);
 
       if (cosVal >= 0) {
-        // 正面：透光玻璃層
         if (projWidth > 1) {
           ctx.save();
           drawRoundedRect(ctx, xHinge, topY, projWidth, H, radius);
@@ -683,19 +711,16 @@
           ctx.restore();
         }
       } else {
-        // 背面：文字頁深色毛玻璃質感
         const leftX = xHinge - projWidth;
         if (projWidth > 1) {
           ctx.save();
           drawRoundedRect(ctx, leftX, topY, projWidth, H, radius);
           ctx.clip();
 
-          // 繪製模糊背景
           if (blurredImgCanvas.width > 0) {
             drawImageCover(ctx, blurredImgCanvas, leftX, topY, projWidth, H);
           }
 
-          // 疊加 82% 深色透明遮罩 (與 CSS 預覽 100% 相同)
           ctx.fillStyle = "rgba(22, 22, 24, 0.82)";
           ctx.fillRect(leftX, topY, projWidth, H);
 
@@ -703,14 +728,12 @@
           ctx.lineWidth = 1.5 * S;
           ctx.stroke();
 
-          // 左側中脊陰影
           const shadowGradLeft = ctx.createLinearGradient(xHinge, topY, xHinge - 35 * S, topY);
           shadowGradLeft.addColorStop(0, `rgba(0,0,0,${p * 0.6})`);
           shadowGradLeft.addColorStop(1, 'rgba(0,0,0,0)');
           ctx.fillStyle = shadowGradLeft;
           ctx.fillRect(xHinge - 35 * S, topY, 35 * S, H);
 
-          // 文字透出
           ctx.globalAlpha = p;
           const curFontSize = parseFloat(fontSize.value) * scale * S * 0.9;
           ctx.font = `${curFontSize}px ${fontFamily.value}`;
